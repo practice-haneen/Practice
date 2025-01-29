@@ -1,7 +1,11 @@
 /*
- * configure the host
- * Add services to the container.
- */
+* configure the host
+* Add services to the container.
+*/
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
+using Practice.API.Middlewares;
+
 var builder = WebApplication.CreateBuilder(args);
 
 /*
@@ -20,6 +24,16 @@ var app = builder.Build();
 Configuer(app, app.Environment);
 
 
+app.Map("/error", (HttpContext httpContext, ILoggerFactory loggerFactory) =>
+{
+    var exception = httpContext.Features.Get<IExceptionHandlerFeature>()?.Error;
+    var logger = loggerFactory.CreateLogger("ExceptionHandler");
+    logger.LogInformation("Error: {error}", exception?.Message);
+    return Results.Problem(exception?.Message);
+});
+
+app.Run();
+
 static void ConfigureServices(IServiceCollection services)
 {
     services.AddControllers();
@@ -36,8 +50,12 @@ static void Configuer(IApplicationBuilder app, IWebHostEnvironment environment)
         app.UseSwaggerUI();
     }
 
+    app.UseMiddleware<TimeLoggingMiddleware>();
+    app.UseExceptionHandler("/error");
     // the words Use/Map/Run are called delegates
     app.UseCors("AllowAll");
+
+    app.UseRouting();
 
     app.UseAuthentication();
 
@@ -45,29 +63,4 @@ static void Configuer(IApplicationBuilder app, IWebHostEnvironment environment)
 
     app.UseEndpoints(endpionts =>
     endpionts.MapControllers());
-
-
-    app.Use(async (context, next) =>
-    {
-        await context.Response.WriteAsync("Middleware1: Incoming Request\n");
-        //Calling the Next Middleware Component
-        await next();
-        await context.Response.WriteAsync("Middleware1: Outgoing Response\n");
-    });
-    //Second Middleware Component Registered using Use Extension Method
-    app.Use(async (context, next) =>
-    {
-        await context.Response.WriteAsync("Middleware2: Incoming Request\n");
-        //Calling the Next Middleware Component
-        await next();
-        await context.Response.WriteAsync("Middleware2: Outgoing Response\n");
-    });
-    //Third Middleware Component Registered using Run Extension Method
-    app.Run(async (context) =>
-    {
-        await context.Response.WriteAsync("Middleware3: Incoming Request handled and response generated\n");
-        //Terminal Middleware Component i.e. cannot call the Next Component
-    });
-
-    //app.Run();
 }
